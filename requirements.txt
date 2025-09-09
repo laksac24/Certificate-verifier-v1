@@ -9,7 +9,7 @@ langchain_groq
 langchain_core
 langgraph
 dotenv
-pillow
+Pillow==9.5.0
 PyMuPDF
 imagehash
 easyocr
