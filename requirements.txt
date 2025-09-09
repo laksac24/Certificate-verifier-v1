@@ -1,7 +1,5 @@
 langchain_groq
-langchain_community
 langchain_core
-langchain_community
 langgraph
 dotenv
 pillow
