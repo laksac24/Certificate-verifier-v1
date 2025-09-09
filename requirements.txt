@@ -1,61 +1,61 @@
-# # CPU-only PyTorch build (compatible pair)
-# torch==2.7.1+cpu
-# torchvision==0.22.1+cpu
-# --extra-index-url https://download.pytorch.org/whl/cpu
-
-# # Your other packages
-# ultralytics
-# langchain_groq
-# langchain_core
-# langgraph
-# dotenv
-# pillow
-# PyMuPDF
-# imagehash
-# easyocr
-# pymongo
-# fastapi
-# uvicorn
-# python-multipart
-
-
-
-# Core FastAPI dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-
-# File processing
-Pillow==10.1.0
-PyMuPDF==1.23.8
-
-# CPU-only PyTorch (lighter for Render)
+# CPU-only PyTorch build (compatible pair)
+torch==2.7.1+cpu
+torchvision==0.22.1+cpu
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.1.0+cpu
-torchvision==0.16.0+cpu
 
-# YOLO and Computer Vision
-ultralytics==8.0.196
-opencv-python-headless==4.8.1.78
-numpy==1.24.4
+# Your other packages
+ultralytics
+langchain_groq
+langchain_core
+langgraph
+dotenv
+pillow
+PyMuPDF
+imagehash
+easyocr
+pymongo
+fastapi
+uvicorn
+python-multipart
 
-# OCR
-easyocr==1.7.0
 
-# LangChain dependencies
-langchain-groq==0.1.5
-langchain-core==0.2.23
-langgraph==0.1.5
 
-# Database
-pymongo==4.6.0
+# # Core FastAPI dependencies
+# fastapi==0.104.1
+# uvicorn[standard]==0.24.0
+# python-multipart==0.0.6
 
-# Image processing
-imagehash==4.3.1
+# # File processing
+# Pillow==10.1.0
+# PyMuPDF==1.23.8
 
-# Environment variables
-python-dotenv==1.0.0
+# # CPU-only PyTorch (lighter for Render)
+# --extra-index-url https://download.pytorch.org/whl/cpu
+# torch==2.1.0+cpu
+# torchvision==0.16.0+cpu
 
-# Additional dependencies
-typing-extensions==4.8.0
-pydantic==2.5.0
+# # YOLO and Computer Vision
+# ultralytics==8.0.196
+# opencv-python-headless==4.8.1.78
+# numpy==1.24.4
+
+# # OCR
+# easyocr==1.7.0
+
+# # LangChain dependencies
+# langchain-groq==0.1.5
+# langchain-core==0.2.23
+# langgraph==0.1.5
+
+# # Database
+# pymongo==4.6.0
+
+# # Image processing
+# imagehash==4.3.1
+
+# # Environment variables
+# python-dotenv==1.0.0
+
+# # Additional dependencies
+# typing-extensions==4.8.0
+# pydantic==2.5.0
