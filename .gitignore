@@ -1,0 +1,5 @@
+.env
+venv
+dup_certi
+certificate_detection/augmented_dataset
+certificate_detection/Dataset

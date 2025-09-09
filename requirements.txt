@@ -1,0 +1,17 @@
+langchain_groq
+langchain_community
+langchain_core
+langchain_community
+langgraph
+dotenv
+pillow
+PyMuPDF
+imagehash
+pytesseract
+easyocr
+pymongo
+ipykernel
+ultralytics
+fastapi
+uvicorn
+python-multipart
