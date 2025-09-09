@@ -1441,7 +1441,6 @@
 
 
 
-
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -1494,7 +1493,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global variables for components - loaded once at startup
+# Global variables for components - loaded lazily
 certificate_detector = None
 llm = None
 image_llm = None
@@ -1532,35 +1531,21 @@ def ensure_directories():
         dir_path.mkdir(exist_ok=True)
         logger.info(f"Ensured directory exists: {dir_path}")
 
-def initialize_components():
-    """Initialize all components with proper error handling"""
-    global certificate_detector, llm, image_llm, graph, ocr_reader, components_loaded
+def initialize_llm_components():
+    """Initialize only LLM components quickly"""
+    global llm, image_llm, graph
     
     try:
-        logger.info("Starting component initialization...")
+        logger.info("Initializing LLM components...")
         
         # Import here to handle missing dependencies gracefully
         from langgraph.graph.message import add_messages
         from langchain_groq import ChatGroq
         from langchain_core.prompts import ChatPromptTemplate
         from langgraph.graph import StateGraph, START, END
-        import easyocr
         
-        logger.info("Initializing OCR reader...")
-        ocr_reader = easyocr.Reader(['en'])
-        
-        logger.info("Initializing LLM components...")
         llm = ChatGroq(model="openai/gpt-oss-120b")
         image_llm = ChatGroq(model="meta-llama/llama-4-maverick-17b-128e-instruct")
-        
-        # Initialize certificate detector
-        try:
-            from certificate_detection.detector import CertificateDetector
-            certificate_detector = CertificateDetector()
-            logger.info("Certificate detector initialized successfully")
-        except Exception as e:
-            logger.warning(f"Certificate detector initialization failed: {e}")
-            certificate_detector = None
         
         # Build the graph
         class State(TypedDict):
@@ -1587,15 +1572,64 @@ def initialize_components():
         graph_builder.add_edge("selector_node",END)
         
         graph = graph_builder.compile()
-        logger.info("Graph compiled successfully")
+        logger.info("LLM components initialized successfully")
         
-        components_loaded = True
-        logger.info("All components initialized successfully")
         return True
         
     except Exception as e:
-        logger.error(f"Failed to initialize components: {e}")
+        logger.error(f"Failed to initialize LLM components: {e}")
         return False
+
+def initialize_heavy_components():
+    """Initialize heavy components (OCR, Certificate Detector) lazily"""
+    global certificate_detector, ocr_reader, components_loaded
+    
+    try:
+        logger.info("Initializing heavy components...")
+        
+        # Initialize certificate detector
+        try:
+            from certificate_detection.detector import CertificateDetector
+            certificate_detector = CertificateDetector()
+            logger.info("Certificate detector initialized successfully")
+        except Exception as e:
+            logger.warning(f"Certificate detector initialization failed: {e}")
+            certificate_detector = None
+        
+        # Initialize OCR reader
+        try:
+            import easyocr
+            logger.info("Starting OCR reader initialization (this may take a few minutes)...")
+            ocr_reader = easyocr.Reader(['en'])
+            logger.info("OCR reader initialized successfully")
+        except Exception as e:
+            logger.warning(f"OCR reader initialization failed: {e}")
+            ocr_reader = None
+        
+        components_loaded = True
+        logger.info("All heavy components initialized successfully")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize heavy components: {e}")
+        return False
+
+def get_ocr_reader():
+    """Get OCR reader, initialize if needed"""
+    global ocr_reader
+    
+    if ocr_reader is None:
+        try:
+            import easyocr
+            logger.info("Initializing OCR reader on demand...")
+            ocr_reader = easyocr.Reader(['en'])
+            logger.info("OCR reader initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize OCR reader: {e}")
+            raise Exception("OCR reader could not be initialized")
+    
+    return ocr_reader
 
 def resize_image_for_api(image_path, max_size=(1024, 1024), quality=85):
     """Resize and compress image to reduce file size for API calls"""
@@ -1811,7 +1845,7 @@ def ocr_llm(state):
         
         # Add timeout for OCR processing
         future = executor.submit(run_ocr_check, state)
-        result_state = future.result(timeout=180)  # 3 minute timeout
+        result_state = future.result(timeout=300)  # 5 minute timeout for OCR
         
         return result_state
         
@@ -1823,15 +1857,18 @@ def ocr_llm(state):
         return state
 
 def run_ocr_check(state):
-    """Run OCR check using pre-loaded reader"""
+    """Run OCR check using lazy-loaded reader"""
     try:
         ocr_results = {}
         processed_folder = "./processed_certificates"
+        
+        # Get OCR reader (will initialize if needed)
+        reader = get_ocr_reader()
 
         for file in state["accepted_certi"]:
             if file.endswith(".png"):
                 img_path = os.path.join(processed_folder, file)
-                result = ocr_reader.readtext(img_path, detail=0)  # Use pre-loaded reader
+                result = reader.readtext(img_path, detail=0)
                 ocr_results[file] = " ".join(result)
 
         state["ocr_texts"] = ocr_results
@@ -2006,6 +2043,11 @@ def process_certificates_background(files_data: list, processing_id: str):
     try:
         update_processing_status(processing_id, ProcessingStatus.PROCESSING, "Starting certificate processing...")
         
+        # Initialize heavy components if not done yet
+        if not components_loaded:
+            logger.info("Initializing heavy components in background...")
+            initialize_heavy_components()
+        
         # Save files
         base_dir = get_base_dir()
         certificates_folder = base_dir / "certificates"
@@ -2072,15 +2114,17 @@ def process_certificates_background(files_data: list, processing_id: str):
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize components on startup"""
+    """Initialize only essential components on startup"""
     logger.info("Starting up Certificate Validation API...")
     ensure_directories()
     
-    success = initialize_components()
+    # Only initialize LLM components during startup for fast boot
+    success = initialize_llm_components()
     if not success:
-        logger.error("Failed to initialize some components - API may have limited functionality")
+        logger.error("Failed to initialize LLM components")
     else:
-        logger.info("All components initialized successfully")
+        logger.info("Essential components initialized - service ready")
+        logger.info("Heavy components (OCR, etc.) will be initialized on first request")
 
 @app.get("/")
 async def root():
@@ -2094,13 +2138,14 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     health_status = {
-        "status": "healthy" if components_loaded else "partial",
+        "status": "healthy",
         "components": {
             "llm": llm is not None,
             "image_llm": image_llm is not None,
             "certificate_detector": certificate_detector is not None,
             "graph": graph is not None,
-            "ocr_reader": ocr_reader is not None
+            "ocr_reader": ocr_reader is not None,
+            "heavy_components_loaded": components_loaded
         }
     }
     return health_status
@@ -2111,7 +2156,7 @@ async def validate_certificates(background_tasks: BackgroundTasks, files: List[U
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
     
-    if not components_loaded:
+    if not graph:
         raise HTTPException(status_code=503, detail="Service not properly initialized")
     
     try:
@@ -2136,7 +2181,8 @@ async def validate_certificates(background_tasks: BackgroundTasks, files: List[U
             "status": "accepted",
             "processing_id": processing_id,
             "message": f"Processing started for {len(files_data)} files",
-            "check_status_url": f"/status/{processing_id}"
+            "check_status_url": f"/status/{processing_id}",
+            "note": "Heavy components (OCR) will be initialized during processing if needed"
         }, status_code=202)
         
     except Exception as e:
@@ -2150,6 +2196,26 @@ async def get_processing_status(processing_id: str):
         raise HTTPException(status_code=404, detail="Processing ID not found")
     
     return processing_status[processing_id]
+
+@app.post("/warm-up/")
+async def warm_up():
+    """Warm up heavy components"""
+    global components_loaded
+    
+    if components_loaded:
+        return {"status": "already_loaded", "message": "Heavy components already loaded"}
+    
+    try:
+        # Run in background
+        def warm_up_task():
+            initialize_heavy_components()
+        
+        executor.submit(warm_up_task)
+        
+        return {"status": "started", "message": "Heavy component initialization started in background"}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Warm-up failed: {str(e)}")
 
 @app.delete("/cleanup/")
 async def cleanup_all():
