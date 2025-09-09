@@ -3,3 +3,6 @@ venv
 dup_certi
 certificate_detection/augmented_dataset
 certificate_detection/Dataset
+certificate_detection/__pycache__
+similar_certificates/__pycache__
+__pycache__
